@@ -1,3 +1,18 @@
+# Author: Juergen Mang <juergen.mang@axians.de>
+# Date: 2023-07-12
+#
+# DNS Request and response parsing
+# Save it as an iRule with name "dns_parser" and do NOT attach it to any vs
+# The defined procs are called by the "dns-logging-*" iRules
+#
+# This iRule is based on: https://github.com/tcltk/tcllib/blob/master/modules/dns/dns.tcl
+# dns.tcl - Copyright (C) 2002 Pat Thoyts <patthoyts@users.sourceforge.net>
+#
+# -------------------------------------------------------------------------
+# See the file "LICENSE.md" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+# -------------------------------------------------------------------------
+
 when RULE_INIT priority 500 {
 
 
@@ -108,9 +123,14 @@ when RULE_INIT priority 500 {
   }
     
     
-    set cvt_data $transid$params$quests$answers$authors$addits$queryname$querytype$queryclass
+   set cvt_data $transid$params$quests$answers$authors$addits$queryname$querytype$queryclass
 
    set new_pkt [binary format H* $cvt_data]
+   
+   
+   
+   set matchdomain "linuxsys.net"
+   
 
     switch $querytype {
       0001  {set qtype A}
@@ -129,10 +149,10 @@ when RULE_INIT priority 500 {
 
 
 
-
     log local0. "Rec query from $host on port $port for host $qhost at $qdomain type $qtype"
     
-    if {$qdomain contains "linuxsys.net"}{
+    
+    if {$qdomain contains $matchdomain}{
 
     set answer "0001"
     set author "0000"
