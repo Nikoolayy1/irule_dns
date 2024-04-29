@@ -1,18 +1,3 @@
-# Author: Juergen Mang <juergen.mang@axians.de>
-# Date: 2023-07-12
-#
-# DNS Request and response parsing
-# Save it as an iRule with name "dns_parser" and do NOT attach it to any vs
-# The defined procs are called by the "dns-logging-*" iRules
-#
-# This iRule is based on: https://github.com/tcltk/tcllib/blob/master/modules/dns/dns.tcl
-# dns.tcl - Copyright (C) 2002 Pat Thoyts <patthoyts@users.sourceforge.net>
-#
-# -------------------------------------------------------------------------
-# See the file "LICENSE.md" for information on usage and redistribution
-# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-# -------------------------------------------------------------------------
-
 when RULE_INIT priority 500 {
 
 
@@ -92,31 +77,40 @@ when RULE_INIT priority 500 {
     
     
     
+    
     set transid [string range $cvt_data 0 3]
     set params  [string range $cvt_data 4 7]
     set quests  [string range $cvt_data 8 11]
     set answers [string range $cvt_data 12 15]
     set authors [string range $cvt_data 16 19]
     set addits  [string range $cvt_data 20 23]
+    
+    
+    if {$addits equals "0000"}{
+    
     set queryname  [string range $cvt_data 24 end-8]
     set querytype  [string range $cvt_data end-7 end-4]
     set queryclass [string range $cvt_data end-3 end]
+    set additional ""
 
-  #  set transid [string range $cvt_data 0 3]
-  #  set params  [string range $cvt_data 4 7]
- #   set quests  [string range $cvt_data 8 11]
-  #  set answers [string range $cvt_data 12 15]
-  #  set authors [string range $cvt_data 16 19]
-  #  set addits  [string range $cvt_data 20 23]
-  #  set queryname  [string range $cvt_data 24 end-54]
-  #  set additional [string range $cvt_data end-49 end-46]
- #   set querytype  [string range $cvt_data end-53 end-50]
-#    set queryclass [string range $cvt_data end-49 end-46]
+
+
+    
+  } else {
+  
+  
+    set queryname  [string range $cvt_data 24 end-54]
+    set querytype  [string range $cvt_data end-53 end-50]
+    set queryclass [string range $cvt_data end-49 end-46]
+    set additional [string range $cvt_data end-45 end]
+ 
+  
+  }
     
     
     set cvt_data $transid$params$quests$answers$authors$addits$queryname$querytype$queryclass
 
-  # set new_pkt [binary format H* $cvt_data]
+   set new_pkt [binary format H* $cvt_data]
 
     switch $querytype {
       0001  {set qtype A}
@@ -128,7 +122,7 @@ when RULE_INIT priority 500 {
       default {set qtype error}
     }
 
-    set qname [split [call cvtname [string range $pkt 12 end-4]] "."]
+    set qname [split [call cvtname [string range $new_pkt 12 end-4]] "."]
     set llen [llength $qname]
     set qhost   [string map {" " .} [lrange $qname 0 end-3]]
     set qdomain [string map {" " .} [lrange $qname end-2 end-1]]
@@ -174,7 +168,7 @@ when RULE_INIT priority 500 {
       switch $qtype {
         A     {set lookup [call cvtaddressdns  [lindex $static::db($qdomain,$qtype,$qhost) $recindex]]}
         MX    {set mxprefix [lindex [lindex $static::db($qdomain,$qtype) $recindex] 0]
-               set lookup [call cvthostnamedns [lindex [lindex $::db($qdomain,$qtype) $recindex] 1]]
+               set lookup [call cvthostnamedns [lindex [lindex $static::db($qdomain,$qtype) $recindex] 1]]
               }
         NS    {set lookup [call cvthostnamedns [lindex $static::db($qdomain,$qtype) $recindex]]}
         CNAME {set lookup [call cvthostnamedns [lindex $static::db($qdomain,$qtype,$qhost) $recindex]]}
@@ -203,7 +197,8 @@ when RULE_INIT priority 500 {
               set len [string length $lookup]
               binary scan $lookup H* hexlookup
               append data "[format %02x $len]${hexlookup}00"
-              set len [expr [string length $data] / 2 -1]
+              set  data_length  [string length $data]
+              set len [expr {$data_length} / 2 -1]
              }                            
       }
 
@@ -216,7 +211,9 @@ when RULE_INIT priority 500 {
     }
 
     set resp_author ""
-    set resp_addit  ""
+     set resp_addit  $additional
+
+
     set response "[string range $cvt_data 0 3]$params[string range $cvt_data 8 11]$answer$author[string range $cvt_data 20 end]"
     
     
