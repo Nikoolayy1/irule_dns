@@ -165,17 +165,10 @@ when RULE_INIT priority 500 {
      # DNS Protection by looking at the cookie and if matches the corect source IP
      
         if { [info exists client_cookie] } {
-        
-        
-           log local0. "Cookie is $client_cookie and length is $cookie_length"
-        
+           
         
           set cookie_ip [table lookup -subtable dns -notouch $client_cookie]
-          
-          
-           log local0. "Cookie ip is $cookie_ip "
-           
-           
+              
         
             if { $cookie_ip != "" && $cookie_ip != [IP::client_addr] } {
         
@@ -187,7 +180,6 @@ when RULE_INIT priority 500 {
             
              table set -subtable dns $client_cookie [IP::client_addr] $static::timeout $static::timeout
 
-          log local0. "  [table keys -subtable dns -notouch] "
             
             }
         
