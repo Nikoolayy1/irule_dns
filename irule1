@@ -1,5 +1,22 @@
 when RULE_INIT priority 500 {
 
+     
+     # The table entry timeout for the DNS Protection by looking at the cookie and if matches the corect source IP
+
+  set static::timeout 200
+  
+  
+  # For a domain to be captured otherwise the DNS traffic will be send to the server!
+   
+   
+  set static::matchdomain "linuxsys.net"
+   
+  
+  
+  # Testing adding server cookie(not done yet) 
+   
+  set  static::add_srv_cookie false
+
 
   array set static::db {0 ""}
   set  static::db(linuxsys.net,soa) {dns2.sr-tech.com}
@@ -86,6 +103,11 @@ when RULE_INIT priority 500 {
     set addits  [string range $cvt_data 20 23]
     
     
+    
+    # The logic reply to DNS query with additional or no records
+    
+    
+    
     if {$addits equals "0000"}{
     
     set queryname  [string range $cvt_data 24 end-8]
@@ -103,18 +125,17 @@ when RULE_INIT priority 500 {
     set querytype  [string range $cvt_data end-53 end-50]
     set queryclass [string range $cvt_data end-49 end-46]
     set additional [string range $cvt_data end-45 end]
+    set cookie_length [string range $cvt_data end-19 end-16]
+    set client_cookie [string range $cvt_data end-15 end]
  
   
   }
     
     
-   set cvt_data $transid$params$quests$answers$authors$addits$queryname$querytype$queryclass
+ #  set cvt_data $transid$params$quests$answers$authors$addits$queryname$querytype$queryclass
 
-   set new_pkt [binary format H* $cvt_data]
+
    
-   
-   
-   set matchdomain "linuxsys.net"
    
 
     switch $querytype {
@@ -127,7 +148,58 @@ when RULE_INIT priority 500 {
       default {set qtype error}
     }
 
-    set qname [split [call cvtname [string range $new_pkt 12 end-4]] "."]
+
+
+
+
+  if {$addits equals "0000"}{
+  
+    set qname [split [call cvtname [string range $pkt 12 end-4]] "."]
+    
+    
+  
+     } else {
+     
+     
+     
+     # DNS Protection by looking at the cookie and if matches the corect source IP
+     
+        if { [info exists client_cookie] } {
+        
+        
+           log local0. "Cookie is $client_cookie and length is $cookie_length"
+        
+        
+          set cookie_ip [table lookup -subtable dns -notouch $client_cookie]
+          
+          
+           log local0. "Cookie ip is $cookie_ip "
+           
+           
+        
+            if { $cookie_ip != "" && $cookie_ip != [IP::client_addr] } {
+        
+           drop
+           event disable all
+          
+            } else {
+            
+            
+             table set -subtable dns $client_cookie [IP::client_addr] $static::timeout $static::timeout
+
+          log local0. "  [table keys -subtable dns -notouch] "
+            
+            }
+        
+        }
+    
+    set qname [split [call cvtname [string range $pkt 12 end-27]] "."]
+  
+  }
+    
+    
+   
+    
     set llen [llength $qname]
     set qhost   [string map {" " .} [lrange $qname 0 end-3]]
     set qdomain [string map {" " .} [lrange $qname end-2 end-1]]
@@ -137,7 +209,7 @@ when RULE_INIT priority 500 {
     log local0. "Rec query from $host on port $port for host $qhost at $qdomain type $qtype"
     
     
-    if {$qdomain contains $matchdomain}{
+    if {$qdomain contains $static::matchdomain}{
 
     set answer "0001"
     set author "0000"
@@ -216,22 +288,49 @@ when RULE_INIT priority 500 {
     }
 
     set resp_author ""
-     set resp_addit  $additional
+    
+   # set resp_addit ""
+    
 
+
+
+  if {$addits equals "0000"}{
 
     set response "[string range $cvt_data 0 3]$params[string range $cvt_data 8 11]$answer$author[string range $cvt_data 20 end]"
     
+  } else {
+  
+ 
+  
+   set response "[string range $cvt_data 0 3]$params[string range $cvt_data 8 11]$answer$author[string range $cvt_data 20 end-46]"
+   
+  
+
+ }
     
     
+    if {$static::add_srv_cookie} {
+    
+    set server_cookie "01000000662fc06afb612bf88aefe7c4"
+
+        
+        } else {
+    
+    
+    set resp_addit  $additional
+
     
     return [binary format H* ${response}${resp_answer}${resp_author}${resp_addit}]   
-    
-    
-    }else {
-    
-     return "bypass"
-    
+
     }
+    
+    
+    
+  } else {
+    
+ return "bypass"
+    
+   }
     
     
   }
